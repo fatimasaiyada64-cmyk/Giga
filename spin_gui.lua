@@ -2,6 +2,7 @@ local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
 
 local player = Players.LocalPlayer
 
@@ -83,7 +84,7 @@ local success, err = pcall(function()
     local autoFlyEnabled, autoClaimEnabled, autoSpinEnabled = false, false, false
     local selectedSpinType = "NORMAL SPIN"
 
-    -- 1. Auto Fly (CFrame movement with a 2-second repeat delay)
+    -- 1. Auto Fly to Target (Flies, fires obby completion event, waits 2s, repeats)
     createToggle("Auto Fly to Target", function(state)
         autoFlyEnabled = state
         if autoFlyEnabled then
@@ -107,7 +108,7 @@ local success, err = pcall(function()
                             local distance = direction.Magnitude
                             
                             if distance < 3 then 
-                                break -- Reached destination
+                                break 
                             end
 
                             local dt = RunService.Heartbeat:Wait()
@@ -118,7 +119,16 @@ local success, err = pcall(function()
                         humanoid.PlatformStand = wasPlatformStanding
                         humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
 
-                        -- Wait 2 seconds for the teleport back before looping to fly again
+                        -- Fire the obby completion event upon arrival to trigger teleport back
+                        pcall(function()
+                            local obbyEvent = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Obby")
+                            local winPartsFolder = Workspace:FindFirstChild("Obbies") and Workspace.Obbies:FindFirstChild("WinParts")
+                            if obbyEvent and winPartsFolder and winPartsFolder:GetChildren()[3] then
+                                obbyEvent:FireServer("ObbyCompleted", winPartsFolder:GetChildren()[3])
+                            end
+                        end)
+
+                        -- Wait 2 seconds before looping to fly again
                         task.wait(2)
                     else
                         task.wait(1)
