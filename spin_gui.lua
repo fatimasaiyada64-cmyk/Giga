@@ -20,8 +20,8 @@ local success, err = pcall(function()
     screenGui.Parent = guiParent
 
     local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 280, 0, 360)
-    mainFrame.Position = UDim2.new(0.5, -140, 0.5, -180)
+    mainFrame.Size = UDim2.new(0, 280, 0, 320)
+    mainFrame.Position = UDim2.new(0.5, -140, 0.5, -160)
     mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
     mainFrame.BorderSizePixel = 0
     mainFrame.Active = true
@@ -44,7 +44,7 @@ local success, err = pcall(function()
     container.Size = UDim2.new(1, -16, 1, -45)
     container.Position = UDim2.new(0, 8, 0, 40)
     container.BackgroundTransparency = 1
-    container.CanvasSize = UDim2.new(0, 0, 0, 500)
+    container.CanvasSize = UDim2.new(0, 0, 0, 400)
     container.ScrollBarThickness = 3
     container.Parent = mainFrame
 
@@ -80,53 +80,61 @@ local success, err = pcall(function()
         end)
     end
 
-    local autoFlyEnabled, autoClaimEnabled, autoSpinEnabled, autoGlassEnabled = false, false, false, false
+    local autoFlyEnabled, autoClaimEnabled, autoSpinEnabled = false, false, false
     local selectedSpinType = "NORMAL SPIN"
 
-    -- 1. Auto Fly
+    -- 1. Auto Fly (Health-checked & repeatable)
     createToggle("Auto Fly to Target", function(state)
         autoFlyEnabled = state
         if autoFlyEnabled then
             task.spawn(function()
                 while autoFlyEnabled do
                     local character = player.Character or player.CharacterAdded:Wait()
-                    local humanoid = character:WaitForChild("Humanoid")
-                    local root = character:WaitForChild("HumanoidRootPart")
-                    local destination = Vector3.new(24.7, -5, -375.9)
-                    local approachPoint = destination + Vector3.new(0, 8, 0)
-                    local speed = 55
+                    local humanoid = character:WaitForChild("Humanoid", 5)
+                    local root = character:WaitForChild("HumanoidRootPart", 5)
+                    
+                    if humanoid and root and humanoid.Health > 0 then
+                        local destination = Vector3.new(24.7, -5, -375.9)
+                        local approachPoint = destination + Vector3.new(0, 8, 0)
+                        local speed = 55
 
-                    local attachment = Instance.new("Attachment")
-                    attachment.Parent = root
-                    local flight = Instance.new("LinearVelocity")
-                    flight.Attachment0 = attachment
-                    flight.RelativeTo = Enum.ActuatorRelativeTo.World
-                    flight.ForceLimitsEnabled = false
-                    flight.VectorVelocity = Vector3.zero
-                    flight.Parent = root
-
-                    local wasPlatformStanding = humanoid.PlatformStand
-                    humanoid.PlatformStand = true
-
-                    local function flyTo(target)
-                        while root.Parent and autoFlyEnabled do
-                            local delta = target - root.Position
-                            local distance = delta.Magnitude
-                            if distance < 1 then break end
-                            local dt = RunService.Heartbeat:Wait()
-                            flight.VectorVelocity = delta.Unit * math.min(speed, distance / dt)
-                        end
+                        local attachment = Instance.new("Attachment")
+                        attachment.Parent = root
+                        local flight = Instance.new("LinearVelocity")
+                        flight.Attachment0 = attachment
+                        flight.RelativeTo = Enum.ActuatorRelativeTo.World
+                        flight.ForceLimitsEnabled = false
                         flight.VectorVelocity = Vector3.zero
+                        flight.Parent = root
+
+                        local wasPlatformStanding = humanoid.PlatformStand
+                        humanoid.PlatformStand = true
+
+                        local function flyTo(target)
+                            while root.Parent and autoFlyEnabled and humanoid.Health > 0 do
+                                local delta = target - root.Position
+                                local distance = delta.Magnitude
+                                if distance < 2 then break end
+                                local dt = RunService.Heartbeat:Wait()
+                                flight.VectorVelocity = delta.Unit * math.min(speed, distance / dt)
+                            end
+                            flight.VectorVelocity = Vector3.zero
+                        end
+
+                        flyTo(approachPoint)
+                        if autoFlyEnabled and humanoid.Health > 0 then 
+                            flyTo(destination) 
+                        end
+
+                        flight:Destroy()
+                        attachment:Destroy()
+                        
+                        if humanoid and humanoid.Parent then
+                            humanoid.PlatformStand = wasPlatformStanding
+                            humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+                        end
                     end
-
-                    flyTo(approachPoint)
-                    if autoFlyEnabled then flyTo(destination) end
-
-                    flight:Destroy()
-                    attachment:Destroy()
-                    humanoid.PlatformStand = wasPlatformStanding
-                    humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-                    task.wait(5)
+                    task.wait(2)
                 end
             end)
         end
@@ -150,19 +158,6 @@ local success, err = pcall(function()
                         end
                     end
                     task.wait(5)
-                end
-            end)
-        end
-    end)
-
-    -- 3. Auto Glass Obby
-    createToggle("Auto Complete Glass Obby", function(state)
-        autoGlassEnabled = state
-        if autoGlassEnabled then
-            task.spawn(function()
-                while autoGlassEnabled do
-                    pcall(function() end)
-                    task.wait(1)
                 end
             end)
         end
@@ -228,7 +223,7 @@ local success, err = pcall(function()
         spinListFrame.Visible = not spinListFrame.Visible
     end)
 
-    -- 4. Auto Spin Toggle
+    -- 3. Auto Spin Toggle
     createToggle("Auto Spin Selected", function(state)
         autoSpinEnabled = state
         if autoSpinEnabled then
