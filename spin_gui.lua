@@ -84,42 +84,58 @@ local success, err = pcall(function()
     local autoFlyEnabled, autoClaimEnabled, autoSpinEnabled = false, false, false
     local selectedSpinType = "NORMAL SPIN"
 
-    -- 1. Auto Fly to Target (Flies, fires obby completion event, waits 2s, repeats)
+    -- 1. Auto Fly to Target (Original LinearVelocity logic + Obby Event trigger + 2s repeat)
     createToggle("Auto Fly to Target", function(state)
         autoFlyEnabled = state
         if autoFlyEnabled then
             task.spawn(function()
-                local destination = Vector3.new(24.7, -5, -375.9)
-                local speed = 65
-
                 while autoFlyEnabled do
                     local character = player.Character or player.CharacterAdded:Wait()
-                    local humanoid = character:WaitForChild("Humanoid", 2)
-                    local root = character:WaitForChild("HumanoidRootPart", 2)
+                    local humanoid = character:WaitForChild("Humanoid", 5)
+                    local root = character:WaitForChild("HumanoidRootPart", 5)
                     
                     if humanoid and root and humanoid.Health > 0 then
+                        local destination = Vector3.new(24.7, -5, -375.9)
+                        local approachPoint = destination + Vector3.new(0, 8, 0)
+                        local speed = 55
+
+                        local attachment = Instance.new("Attachment")
+                        attachment.Parent = root
+                        local flight = Instance.new("LinearVelocity")
+                        flight.Attachment0 = attachment
+                        flight.RelativeTo = Enum.ActuatorRelativeTo.World
+                        flight.ForceLimitsEnabled = false
+                        flight.VectorVelocity = Vector3.zero
+                        flight.Parent = root
+
                         local wasPlatformStanding = humanoid.PlatformStand
                         humanoid.PlatformStand = true
 
-                        -- Fly to destination
-                        while autoFlyEnabled and root and humanoid.Health > 0 do
-                            local currentPos = root.Position
-                            local direction = destination - currentPos
-                            local distance = direction.Magnitude
-                            
-                            if distance < 3 then 
-                                break 
+                        local function flyTo(target)
+                            while root.Parent and autoFlyEnabled and humanoid.Health > 0 do
+                                local delta = target - root.Position
+                                local distance = delta.Magnitude
+                                if distance < 3 then break end
+                                local dt = RunService.Heartbeat:Wait()
+                                flight.VectorVelocity = delta.Unit * math.min(speed, distance / dt)
                             end
-
-                            local dt = RunService.Heartbeat:Wait()
-                            local step = math.min(speed * dt, distance)
-                            root.CFrame = CFrame.new(currentPos + direction.Unit * step)
+                            flight.VectorVelocity = Vector3.zero
                         end
 
-                        humanoid.PlatformStand = wasPlatformStanding
-                        humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+                        flyTo(approachPoint)
+                        if autoFlyEnabled and humanoid.Health > 0 then 
+                            flyTo(destination) 
+                        end
 
-                        -- Fire the obby completion event upon arrival to trigger teleport back
+                        flight:Destroy()
+                        attachment:Destroy()
+                        
+                        if humanoid and humanoid.Parent then
+                            humanoid.PlatformStand = wasPlatformStanding
+                            humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+                        end
+
+                        -- Fire the exact obby completion remote event upon reaching destination
                         pcall(function()
                             local obbyEvent = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Obby")
                             local winPartsFolder = Workspace:FindFirstChild("Obbies") and Workspace.Obbies:FindFirstChild("WinParts")
@@ -127,12 +143,8 @@ local success, err = pcall(function()
                                 obbyEvent:FireServer("ObbyCompleted", winPartsFolder:GetChildren()[3])
                             end
                         end)
-
-                        -- Wait 2 seconds before looping to fly again
-                        task.wait(2)
-                    else
-                        task.wait(1)
                     end
+                    task.wait(2) -- Wait 2 seconds before looping again
                 end
             end)
         end
