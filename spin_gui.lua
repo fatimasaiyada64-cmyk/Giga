@@ -83,58 +83,46 @@ local success, err = pcall(function()
     local autoFlyEnabled, autoClaimEnabled, autoSpinEnabled = false, false, false
     local selectedSpinType = "NORMAL SPIN"
 
-    -- 1. Auto Fly (Health-checked & repeatable)
+    -- 1. Auto Fly (CFrame movement with a 2-second repeat delay)
     createToggle("Auto Fly to Target", function(state)
         autoFlyEnabled = state
         if autoFlyEnabled then
             task.spawn(function()
+                local destination = Vector3.new(24.7, -5, -375.9)
+                local speed = 65
+
                 while autoFlyEnabled do
                     local character = player.Character or player.CharacterAdded:Wait()
-                    local humanoid = character:WaitForChild("Humanoid", 5)
-                    local root = character:WaitForChild("HumanoidRootPart", 5)
+                    local humanoid = character:WaitForChild("Humanoid", 2)
+                    local root = character:WaitForChild("HumanoidRootPart", 2)
                     
                     if humanoid and root and humanoid.Health > 0 then
-                        local destination = Vector3.new(24.7, -5, -375.9)
-                        local approachPoint = destination + Vector3.new(0, 8, 0)
-                        local speed = 55
-
-                        local attachment = Instance.new("Attachment")
-                        attachment.Parent = root
-                        local flight = Instance.new("LinearVelocity")
-                        flight.Attachment0 = attachment
-                        flight.RelativeTo = Enum.ActuatorRelativeTo.World
-                        flight.ForceLimitsEnabled = false
-                        flight.VectorVelocity = Vector3.zero
-                        flight.Parent = root
-
                         local wasPlatformStanding = humanoid.PlatformStand
                         humanoid.PlatformStand = true
 
-                        local function flyTo(target)
-                            while root.Parent and autoFlyEnabled and humanoid.Health > 0 do
-                                local delta = target - root.Position
-                                local distance = delta.Magnitude
-                                if distance < 2 then break end
-                                local dt = RunService.Heartbeat:Wait()
-                                flight.VectorVelocity = delta.Unit * math.min(speed, distance / dt)
+                        -- Fly to destination
+                        while autoFlyEnabled and root and humanoid.Health > 0 do
+                            local currentPos = root.Position
+                            local direction = destination - currentPos
+                            local distance = direction.Magnitude
+                            
+                            if distance < 3 then 
+                                break -- Reached destination
                             end
-                            flight.VectorVelocity = Vector3.zero
+
+                            local dt = RunService.Heartbeat:Wait()
+                            local step = math.min(speed * dt, distance)
+                            root.CFrame = CFrame.new(currentPos + direction.Unit * step)
                         end
 
-                        flyTo(approachPoint)
-                        if autoFlyEnabled and humanoid.Health > 0 then 
-                            flyTo(destination) 
-                        end
+                        humanoid.PlatformStand = wasPlatformStanding
+                        humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
 
-                        flight:Destroy()
-                        attachment:Destroy()
-                        
-                        if humanoid and humanoid.Parent then
-                            humanoid.PlatformStand = wasPlatformStanding
-                            humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-                        end
+                        -- Wait 2 seconds for the teleport back before looping to fly again
+                        task.wait(2)
+                    else
+                        task.wait(1)
                     end
-                    task.wait(2)
                 end
             end)
         end
